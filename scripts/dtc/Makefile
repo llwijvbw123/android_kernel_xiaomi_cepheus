@@ -18,6 +18,8 @@ dtc-objs	+= yamltree.o
 HOSTLDLIBS_dtc	:= $(shell pkg-config yaml-0.1 --libs)
 endif
 
+HOSTLDLIBS_dtc += -lyaml
+
 # Generated files need one more search path to include headers in source tree
 HOSTCFLAGS_dtc-lexer.lex.o := -I$(src)
 HOSTCFLAGS_dtc-parser.tab.o := -I$(src)
