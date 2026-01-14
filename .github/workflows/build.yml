@@ -52,23 +52,6 @@ jobs:
       - name: Update Submodules
         run: git submodule update --init --recursive  --remote
         
-      # 验证符号链接+修复路径（新增核心步骤）
-      - name: Verify and fix KernelSU symlink
-        run: |
-          set -e
-          # 1. 检查符号链接是否有效
-          cd drivers
-          if [ ! -L kernelsu ]; then
-              echo "❌ drivers/kernelsu is not a symlink! Recreate it."
-              # 重建符号链接（避免链接失效）
-              ln -sf ../KernelSU/kernel kernelsu
-          fi
-          # 验证链接指向的目录是否存在
-          if [ ! -d kernelsu ]; then
-              echo "❌ Symlink points to non-existent directory: $(readlink kernelsu)"
-              exit 1
-          fi
-          echo "✅ KernelSU symlink is valid: $(readlink kernelsu)"
 
       # 下载指定版本的 clang 17.0.2 和 GCC 4.9
       - name: Download clang
@@ -80,7 +63,61 @@ jobs:
 
       - name: Install libyaml-dev
         run: sudo apt-get update && sudo apt-get install libyaml-dev -y
+      # 验证符号链接+修复路径（新增核心步骤）
+      # 在Debug KernelSU compilation步骤后新增：创建KSU符号测试文件
+      - name: Create KSU symbol test file
+        run: |
+          set -e
+          # 创建极简的测试文件（放在内核根目录，命名为ksu_test.c）
+          cat > ksu_test.c << EOF
+          #define pr_fmt(fmt) "ksu_test: " fmt
+          #include <linux/init.h>
+          #include <linux/module.h>
           
+          // 声明要测试的KSU符号（和原有代码的声明一致）
+          extern int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *value);
+          
+          // 测试函数：调用KSU符号
+          static int __init ksu_test_init(void)
+          {
+              unsigned int type = 0, code = 0;
+              int value = 0;
+              // 调用KSU函数（仅测试符号是否存在，不关注逻辑）
+              ksu_handle_input_handle_event(&type, &code, &value);
+              pr_info("KSU symbol test: call ksu_handle_input_handle_event success\\n");
+              return 0;
+          }
+          
+          static void __exit ksu_test_exit(void)
+          {
+              pr_info("KSU symbol test: exit\\n");
+          }
+          
+          module_init(ksu_test_init);
+          module_exit(ksu_test_exit);
+          MODULE_LICENSE("GPL");
+          EOF
+          # 验证文件创建成功
+          ls -l ksu_test.c && echo "✅ KSU test file created"
+      # 紧接着上一步：配置Makefile编译测试文件
+      - name: Add test file to Makefile
+        run: |
+          set -e
+          # 把测试文件加入内核根目录Makefile（确保最先编译）
+          echo "obj-y += ksu_test.o" >> Makefile
+          # 验证Makefile修改成功
+          grep "ksu_test.o" Makefile && echo "✅ Test file added to Makefile"
+      - name: Build kernel (with test file)
+        run: |
+          set -e
+          make clean && make mrproper
+          # 编译时保留完整日志，重点看ksu_test.o的编译/链接情况
+          bash -x ./build.sh 2>&1 | tee build.log
+          # 检查日志中是否有ksu_test.o的编译记录
+          grep "CC ksu_test.o" build.log || {
+              echo "❌ 测试文件ksu_test.c未被编译！Makefile配置失败"
+              exit 1
+          }          
       # 下载Nethunter内核和设备包
       #- name: Download Nethunter
        # run: |
