@@ -51,6 +51,24 @@ jobs:
       # 新增步骤：拉取子模块【Kernelsu  Anykernel】
       - name: Update Submodules
         run: git submodule update --init --recursive  --remote
+        
+      # 验证符号链接+修复路径（新增核心步骤）
+      - name: Verify and fix KernelSU symlink
+        run: |
+          set -e
+          # 1. 检查符号链接是否有效
+          cd drivers
+          if [ ! -L kernelsu ]; then
+              echo "❌ drivers/kernelsu is not a symlink! Recreate it."
+              # 重建符号链接（避免链接失效）
+              ln -sf ../KernelSU/kernel kernelsu
+          fi
+          # 验证链接指向的目录是否存在
+          if [ ! -d kernelsu ]; then
+              echo "❌ Symlink points to non-existent directory: $(readlink kernelsu)"
+              exit 1
+          fi
+          echo "✅ KernelSU symlink is valid: $(readlink kernelsu)"
 
       # 下载指定版本的 clang 17.0.2 和 GCC 4.9
       - name: Download clang
