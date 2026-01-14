@@ -64,27 +64,29 @@ jobs:
       - name: Install libyaml-dev
         run: sudo apt-get update && sudo apt-get install libyaml-dev -y
       # 验证符号链接+修复路径（新增核心步骤）
-      # 在Debug KernelSU compilation步骤后新增：创建KSU符号测试文件
-      - name: Create KSU symbol test file
+# 在Debug KernelSU compilation步骤后新增：创建独立测试目录
+      - name: Create independent KSU test directory
         run: |
           set -e
-          # 创建极简的测试文件（放在内核根目录，命名为ksu_test.c）
-          cat > ksu_test.c << EOF
+          # 1. 创建独立测试目录（内核根目录下，命名为ksu_test_dir）
+          mkdir -p ksu_test_dir
+          # 2. 在测试目录下创建核心测试文件（ksu_test.c）
+          cat > ksu_test_dir/ksu_test.c << EOF
           #define pr_fmt(fmt) "ksu_test: " fmt
           #include <linux/init.h>
           #include <linux/module.h>
           
-          // 声明要测试的KSU符号（和原有代码的声明一致）
+          // 声明要测试的KSU符号（和原有代码的声明完全一致）
           extern int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *value);
           
-          // 测试函数：调用KSU符号
+          // 极简测试函数：仅调用KSU符号，无其他依赖
           static int __init ksu_test_init(void)
           {
               unsigned int type = 0, code = 0;
               int value = 0;
-              // 调用KSU函数（仅测试符号是否存在，不关注逻辑）
+              // 核心：调用KSU符号，验证是否能找到
               ksu_handle_input_handle_event(&type, &code, &value);
-              pr_info("KSU symbol test: call ksu_handle_input_handle_event success\\n");
+              pr_info("✅ KSU symbol test: call ksu_handle_input_handle_event success\\n");
               return 0;
           }
           
@@ -97,8 +99,15 @@ jobs:
           module_exit(ksu_test_exit);
           MODULE_LICENSE("GPL");
           EOF
-          # 验证文件创建成功
-          ls -l ksu_test.c && echo "✅ KSU test file created"
+              # 3. 在测试目录下创建专属Makefile（指定编译规则）
+              cat > ksu_test_dir/Makefile << EOF
+          # 测试目录的Makefile：明确要编译的文件
+          obj-y += ksu_test.o
+          # 引入内核头文件，避免编译报错
+          EXTRA_CFLAGS += -I\$(src)/include -I\$(src)/KernelSU/include
+          EOF
+          # 验证目录和文件创建成功
+          ls -l ksu_test_dir/ && echo "✅ Independent KSU test directory created"
       # 紧接着上一步：配置Makefile编译测试文件
       - name: Add test file to Makefile
         run: |
