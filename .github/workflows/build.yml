@@ -22,26 +22,38 @@ jobs:
     steps:
       - name: Test yaml library availability
         run: |
-          set -e  # 出错立即终止
+          set -e
           # 创建测试C文件
           cat > test_yaml.c << EOF
           #include <yaml.h>
+          #include <stdio.h>
           int main() {
               yaml_emitter_t emitter;
-              yaml_emitter_initialize(&emitter);  // 测试目标函数
+              printf("🔍 Testing yaml_emitter_initialize...\n");
+              yaml_emitter_initialize(&emitter);
+              printf("✅ yaml_emitter_initialize called successfully\n");
               yaml_emitter_delete(&emitter);
+              printf("✅ YAML library test passed completely\n");
               return 0;
           }
           EOF
-          # 安装依赖（确保CI环境有libyaml-dev）
+          # 安装依赖
           sudo apt-get update && sudo apt-get install -y libyaml-dev
-          # 编译测试文件（链接yaml库）
-          gcc test_yaml.c -o test_yaml -lyaml
-          # 执行测试程序（可选，验证运行）
+          # 编译并输出编译状态
+          echo "📦 Compiling test_yaml.c..."
+          if gcc test_yaml.c -o test_yaml -lyaml; then
+              echo "✅ Compilation succeeded"
+          else
+              echo "❌ Compilation failed"
+              exit 1
+          fi
+          # 执行并输出执行结果
+          echo "▶️ Running test_yaml..."
           ./test_yaml
-          # 清理临时文件
+          # 清理
           rm -f test_yaml.c test_yaml
-          echo "✅ YAML库引用正常"
+          echo "🎉 All YAML library tests passed"
+          
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
         with:
