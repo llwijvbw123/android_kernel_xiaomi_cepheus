@@ -20,20 +20,26 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - name: Install Python2 and dependencies
+      - name: Install Python2 (via deadsnakes PPA)
         run: |
           set -e
-          # 安装python2（Ubuntu 22.04+需从universe仓库安装）
+          # 安装依赖工具（添加PPA需要）
           sudo apt-get update
-          sudo apt-get install -y python2 python2-dev
-          # 创建python2软链接（确保系统能识别python2命令）
-          sudo ln -sf /usr/bin/python2 /usr/bin/python2.7
-          # 验证python2是否安装成功
+          sudo apt-get install -y software-properties-common
+          # 添加deadsnakes PPA（提供Python2.7）
+          sudo add-apt-repository -y ppa:deadsnakes/ppa
+          # 再次更新源（加载PPA的包列表）
+          sudo apt-get update
+          # 安装Python2.7（替代python2，ubuntu22.04+中包名是python2.7）
+          sudo apt-get install -y python2.7 python2.7-dev
+          # 创建python2软链接（匹配内核脚本的python2调用）
+          sudo ln -sf /usr/bin/python2.7 /usr/bin/python2
+          # 验证安装
           if ! command -v python2 &> /dev/null; then
               echo "❌ Error: Python2 installation failed"
               exit 1
           fi
-          python2 --version  # 输出版本，确认可用
+          python2 --version  # 输出Python 2.7.x，确认可用
           echo "✅ Python2 installed successfully"
           
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
